@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+
+{% block title %}Upload - Photos{% endblock %}
+
+{% block extra_css %}
+<style>
+    .upload-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .upload-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .album-select {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    .album-select label {
+        margin-right: 10px;
+    }
+
+    .album-select select {
+        padding: 10px 15px;
+        border-radius: var(--border-radius);
+        background-color: var(--surface-color);
+        color: var(--text-color);
+        font-size: 1rem;
+        border: 1px solid var(--text-secondary);
+    }
+
+    .drop-zone {
+        border: 3px dashed var(--text-secondary);
+        border-radius: 16px;
+        padding: 60px 40px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        background-color: var(--surface-color);
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+        border-color: var(--primary-color);
+        background-color: rgba(187, 134, 252, 0.1);
+    }
+
+    .drop-zone-icon {
+        font-size: 4rem;
+        margin-bottom: 20px;
+    }
+
+    .drop-zone-text {
+        font-size: 1.2rem;
+        color: var(--text-secondary);
+        margin-bottom: 10px;
+    }
+
+    .drop-zone-hint {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+    }
+
+    #file-input {
+        display: none;
+    }
+
+    .upload-progress {
+        margin-top: 30px;
+    }
+
+    .progress-item {
+        display: flex;
+        align-items: center;
+        padding: 15px;
+        background-color: var(--surface-color);
+        border-radius: var(--border-radius);
+        margin-bottom: 10px;
+    }
+
+    .progress-item .preview {
+        width: 60px;
+        height: 60px;
+        border-radius: 8px;
+        object-fit: cover;
+        margin-right: 15px;
+        background-color: #333;
+    }
+
+    .progress-item .info {
+        flex: 1;
+    }
+
+    .progress-item .filename {
+        font-weight: 500;
+        margin-bottom: 5px;
+        word-break: break-all;
+    }
+
+    .progress-item .status {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+    }
+
+    .progress-item .progress-bar {
+        height: 4px;
+        background-color: #333;
+        border-radius: 2px;
+        margin-top: 8px;
+        overflow: hidden;
+    }
+
+    .progress-item .progress-fill {
+        height: 100%;
+        background-color: var(--primary-color);
+        transition: width 0.3s;
+    }
+
+    .progress-item.success {
+        border-left: 4px solid #4caf50;
+    }
+
+    .progress-item.error {
+        border-left: 4px solid #f44336;
+    }
+
+    .progress-item.uploading {
+        border-left: 4px solid var(--primary-color);
+    }
+
+    .summary {
+        text-align: center;
+        padding: 20px;
+        margin-top: 20px;
+    }
+
+    .summary.success {
+        color: #4caf50;
+    }
+
+    @media (max-width: 768px) {
+        .drop-zone {
+            padding: 40px 20px;
+        }
+
+        .drop-zone-icon {
+            font-size: 3rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="upload-container" {% if album %}data-album-token="{{ album.share_token }}"{% endif %}>
+    <div class="upload-header">
+        <h1>Upload Photos & Videos</h1>
+        {% if album %}
+        <p style="color: var(--text-secondary); margin-top: 8px;">Uploading to album: <strong>{{ album.title }}</strong></p>
+        {% endif %}
+    </div>
+
+    <div class="album-select" {% if album %}style="display:none;"{% endif %}>
+        <label for="album-select">Save to album:</label>
+        <select id="album-select">
+            <option value="">My Photos</option>
+        </select>
+    </div>
+
+    <div id="drop-zone" class="drop-zone">
+        <div class="drop-zone-icon">📁</div>
+        <div class="drop-zone-text">Drag and drop files here</div>
+        <div class="drop-zone-hint">or click to select files</div>
+        <input type="file" id="file-input" multiple accept="image/*,video/*">
+    </div>
+
+    <div id="upload-progress" class="upload-progress"></div>
+
+    <div id="summary" class="summary" style="display: none;"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const progressContainer = document.getElementById('upload-progress');
+    const summary = document.getElementById('summary');
+    const albumSelect = document.getElementById('album-select');
+
+    let totalFiles = 0;
+    let completedFiles = 0;
+    let failedFiles = 0;
+
+    // Load albums
+    async function loadAlbums() {
+        const res = await fetch('/api/albums');
+        const data = await res.json();
+
+        const options = data.my_albums.map(a =>
+            `<option value="${a.id}">${a.title}</option>`
+        ).join('');
+
+        albumSelect.innerHTML = '<option value="">My Photos</option>' + options;
+    }
+
+    // Click to select files
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    // Drag and drop handlers
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('drag-over');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        handleFiles(e.dataTransfer.files);
+    });
+
+    // File input change
+    fileInput.addEventListener('change', () => {
+        handleFiles(fileInput.files);
+    });
+
+    // Handle files
+    function handleFiles(files) {
+        totalFiles = files.length;
+        completedFiles = 0;
+        failedFiles = 0;
+        summary.style.display = 'none';
+
+        Array.from(files).forEach(file => uploadFile(file));
+    }
+
+    // Upload single file
+    async function uploadFile(file) {
+        const id = Date.now() + Math.random();
+
+        // Create progress item
+        const item = document.createElement('div');
+        item.className = 'progress-item uploading';
+        item.id = `progress-${id}`;
+        item.innerHTML = `
+            <img class="preview" id="preview-${id}">
+            <div class="info">
+                <div class="filename">${file.name}</div>
+                <div class="status" id="status-${id}">Uploading...</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="fill-${id}" style="width: 0%"></div>
+                </div>
+            </div>
+        `;
+        progressContainer.appendChild(item);
+
+        // Generate preview
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById(`preview-${id}`).src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        } else {
+            document.getElementById(`preview-${id}`).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60"><rect fill="%23333" width="60" height="60"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="20">▶</text></svg>';
+        }
+
+        // Upload with progress
+        const formData = new FormData();
+        formData.append('file', file);
+        if (albumSelect.value) {
+            formData.append('album_id', albumSelect.value);
+        }
+
+        try {
+            const xhr = new XMLHttpRequest();
+
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    document.getElementById(`fill-${id}`).style.width = `${percent}%`;
+                    document.getElementById(`status-${id}`).textContent = `Uploading... ${percent}%`;
+                }
+            });
+
+            const promise = new Promise((resolve, reject) => {
+                xhr.onload = () => {
+                    if (xhr.status === 201) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(JSON.parse(xhr.responseText));
+                    }
+                };
+                xhr.onerror = () => reject({ error: 'Network error' });
+            });
+
+            const container = document.querySelector('.upload-container');
+            let uploadUrl = '/upload/';
+            if (container.dataset.albumToken) {
+                uploadUrl = '/upload/public/' + container.dataset.albumToken;
+            }
+            xhr.open('POST', uploadUrl);
+            xhr.send(formData);
+
+            await promise;
+
+            // Success
+            item.classList.remove('uploading');
+            item.classList.add('success');
+            document.getElementById(`status-${id}`).textContent = 'Uploaded!';
+            completedFiles++;
+
+        } catch (err) {
+            // Error
+            item.classList.remove('uploading');
+            item.classList.add('error');
+            document.getElementById(`status-${id}`).textContent = `Error: ${err.error || 'Upload failed'}`;
+            failedFiles++;
+        }
+
+        // Update summary
+        if (completedFiles + failedFiles === totalFiles) {
+            summary.style.display = 'block';
+            summary.className = summary.success ? 'summary success' : 'summary';
+            summary.innerHTML = `
+                <p>✅ ${completedFiles} files uploaded successfully</p>
+                ${failedFiles > 0 ? `<p style="color: #f44336;">❌ ${failedFiles} files failed</p>` : ''}
+                <p><a href="/gallery" style="color: var(--primary-color);">View Gallery</a></p>
+            `;
+        }
+    }
+
+    loadAlbums();
+</script>
+{% endblock %}

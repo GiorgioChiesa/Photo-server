@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(python3:*)",
+      "Bash(npm:*)",
+      "Read(**)",
+      "Edit(src/**)",
+      "Edit(tests/**)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Read(.env.production)"
+    ]
+  },
+  "hooks": {
+    "Stop": [{
+      "hooks": [{
+        "type": "command",
+        "command": "osascript -e 'display notification \"Completato!\" with title \"Claude Code\"'"
+      }]
+    }],
+    "SessionStart": [{
+      "hooks": [{
+        "type": "command",
+        "command": "echo \"Branch: $(git branch --show-current)\nStatus: $(git status --short | head -5)\""
+      }]
+    }]
+  }
+}

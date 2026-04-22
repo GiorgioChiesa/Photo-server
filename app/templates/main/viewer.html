@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}{{ media.filename }} - Photos{% endblock %}
+
+{% block extra_css %}
+<style>
+    .viewer-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .media-display {
+        background-color: var(--surface-color);
+        border-radius: var(--border-radius);
+        overflow: hidden;
+        margin-bottom: 20px;
+    }
+
+    .media-display img,
+    .media-display video {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .media-info {
+        padding: 20px;
+        background-color: var(--surface-color);
+        border-radius: var(--border-radius);
+    }
+
+    .media-info h2 {
+        margin-bottom: 15px;
+        word-break: break-all;
+    }
+
+    .media-meta {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        color: var(--text-secondary);
+    }
+
+    .media-meta-item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .media-meta-label {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .media-meta-value {
+        font-size: 1rem;
+        color: var(--text-color);
+    }
+
+    .media-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: var(--border-radius);
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .btn-primary {
+        background-color: var(--primary-color);
+        color: #000;
+    }
+
+    .btn-danger {
+        background-color: #b71c1c;
+        color: white;
+    }
+
+    .btn:hover {
+        opacity: 0.9;
+    }
+
+    .back-link {
+        display: inline-block;
+        margin-bottom: 20px;
+        color: var(--text-secondary);
+        text-decoration: none;
+    }
+
+    .back-link:hover {
+        color: var(--primary-color);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="viewer-container">
+    <a href="/gallery" class="back-link">← Back to Gallery</a>
+
+    <div class="media-display">
+        {% if media.media_type == 'image' %}
+            <img src="/media/{{ media.id }}/file" alt="{{ media.filename }}">
+        {% else %}
+            <video controls>
+                <source src="/media/{{ media.id }}/file" type="{{ media.mime_type }}">
+                Your browser does not support the video tag.
+            </video>
+        {% endif %}
+    </div>
+
+    <div class="media-info">
+        <h2>{{ media.filename }}</h2>
+
+        <div class="media-meta">
+            <div class="media-meta-item">
+                <span class="media-meta-label">Type</span>
+                <span class="media-meta-value">{{ media.mime_type }}</span>
+            </div>
+            {% if media.width and media.height %}
+            <div class="media-meta-item">
+                <span class="media-meta-label">Dimensions</span>
+                <span class="media-meta-value">{{ media.width }} × {{ media.height }}</span>
+            </div>
+            {% endif %}
+            {% if media.file_size %}
+            <div class="media-meta-item">
+                <span class="media-meta-label">Size</span>
+                <span class="media-meta-value">{{ (media.file_size / 1024 / 1024)|round(2) }} MB</span>
+            </div>
+            {% endif %}
+            {% if media.duration %}
+            <div class="media-meta-item">
+                <span class="media-meta-label">Duration</span>
+                <span class="media-meta-value">{{ (media.duration / 60)|round(2) }} min</span>
+            </div>
+            {% endif %}
+            <div class="media-meta-item">
+                <span class="media-meta-label">Uploaded</span>
+                <span class="media-meta-value">{{ media.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</span>
+            </div>
+        </div>
+
+        <div class="media-actions">
+            <a href="/media/{{ media.id }}/download" class="btn btn-primary" download>Download</a>
+            <button class="btn btn-danger" onclick="deleteMedia()">Delete</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function deleteMedia() {
+        if (!confirm('Are you sure you want to delete this file?')) return;
+
+        const response = await fetch('/media/{{ media.id }}', { method: 'DELETE' });
+
+        if (response.ok) {
+            window.location.href = '/gallery';
+        } else {
+            alert('Failed to delete file');
+        }
+    }
+</script>
+{% endblock %}

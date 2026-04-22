@@ -1,0 +1,1021 @@
+{% extends "base.html" %}
+
+{% block title %}My Photos{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-layout {
+        display: flex;
+        gap: 30px;
+    }
+
+    .sidebar {
+        width: 280px;
+        flex-shrink: 0;
+    }
+
+    .main-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .sidebar-section {
+        margin-bottom: 25px;
+    }
+
+    .sidebar-title {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        margin-bottom: 12px;
+        letter-spacing: 0.5px;
+    }
+
+    .album-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .album-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        background-color: var(--surface-color);
+        border-radius: var(--border-radius);
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+        color: var(--text-color);
+    }
+
+    .album-item:hover .album-edit-btn {
+        opacity: 1;
+    }
+
+    .album-edit-btn {
+        margin-left: auto;
+        opacity: 0;
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-size: 1.1rem;
+        padding: 4px 8px;
+        transition: opacity 0.2s;
+    }
+
+    .album-edit-btn:hover {
+        color: var(--text-color);
+    }
+
+    .album-item:hover {
+        background-color: rgba(255,255,255,0.1);
+    }
+
+    .album-item.active {
+        background-color: var(--primary-color);
+        color: #000;
+    }
+
+    .album-icon {
+        font-size: 1.3rem;
+    }
+
+    .album-meta {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .album-name {
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .album-count {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .album-item.active .album-count {
+        color: #333;
+    }
+
+    .create-album-btn {
+        width: 100%;
+        justify-content: center;
+        background-color: transparent;
+        border: 1px dashed var(--text-secondary);
+    }
+
+    .create-album-btn:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+
+    /* Album Modal */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0,0,0,0.7);
+        z-index: 300;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-overlay.active {
+        display: flex;
+    }
+
+    .modal {
+        background-color: var(--surface-color);
+        border-radius: var(--border-radius);
+        padding: 25px;
+        width: 90%;
+        max-width: 450px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal h2 {
+        margin-bottom: 20px;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 500;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--text-secondary);
+        border-radius: var(--border-radius);
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        font-size: 1rem;
+    }
+
+    .form-group textarea {
+        min-height: 80px;
+        resize: vertical;
+    }
+
+    .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .checkbox-group input {
+        width: 18px;
+        height: 18px;
+    }
+
+    .checkbox-group label {
+        margin-bottom: 0;
+        font-weight: normal;
+    }
+
+    .gallery-item.selected .select-indicator {
+        opacity: 1;
+    }
+
+    .gallery-item.selected {
+        outline: 3px solid var(--accent-color);
+    }
+
+    .select-indicator {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 24px;
+        height: 24px;
+        background: var(--accent-color);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+
+    .selection-toolbar {
+        position: fixed;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--surface-color);
+        border-radius: 50px;
+        padding: 12px 24px;
+        display: none;
+        gap: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        z-index: 1000;
+    }
+
+    .selection-toolbar.active {
+        display: flex;
+    }
+
+    .selection-toolbar button {
+        background: none;
+        border: none;
+        color: var(--text-color);
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 8px;
+    }
+
+    .selection-toolbar button:hover {
+        color: var(--accent-color);
+    }
+
+    .user-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 10px;
+        max-height: 150px;
+        overflow-y: auto;
+    }
+
+    .user-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px;
+        background-color: var(--bg-color);
+        border-radius: var(--border-radius);
+    }
+
+    .user-item input {
+        width: 16px;
+        height: 16px;
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 20px;
+    }
+
+    /* Filter bar */
+    .gallery-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .filter-bar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .filter-btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 20px;
+        background-color: var(--surface-color);
+        color: var(--text-color);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .filter-btn:hover,
+    .filter-btn.active {
+        background-color: var(--primary-color);
+        color: #000;
+    }
+
+    .gallery-section {
+        margin-bottom: 30px;
+    }
+
+    .section-header {
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--surface-color);
+    }
+
+    .section-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+
+    .section-date {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+    }
+
+    .gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 4px;
+    }
+
+    .gallery-item {
+        position: relative;
+        aspect-ratio: 1;
+        overflow: hidden;
+        cursor: pointer;
+        border-radius: 4px;
+        background-color: var(--surface-color);
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    .gallery-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.3s;
+    }
+
+    .gallery-item:hover img {
+        transform: scale(1.05);
+    }
+
+    .gallery-item .video-indicator {
+        position: absolute;
+        bottom: 8px;
+        right: 8px;
+        background-color: rgba(0,0,0,0.7);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-secondary);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-secondary);
+    }
+
+    /* Lightbox */
+    .lightbox {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0,0,0,0.95);
+        z-index: 200;
+        flex-direction: column;
+    }
+
+    .lightbox.active {
+        display: flex;
+    }
+
+    .lightbox-content {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .lightbox-content img,
+    .lightbox-content video {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+    }
+
+    .lightbox-close {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: none;
+        border: none;
+        color: white;
+        font-size: 2rem;
+        cursor: pointer;
+        z-index: 201;
+    }
+
+    .lightbox-nav {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background-color: rgba(255,255,255,0.1);
+        border: none;
+        color: white;
+        font-size: 2rem;
+        padding: 20px 15px;
+        cursor: pointer;
+        z-index: 201;
+    }
+
+    .lightbox-nav:hover {
+        background-color: rgba(255,255,255,0.2);
+    }
+
+    .lightbox-prev {
+        left: 20px;
+    }
+
+    .lightbox-next {
+        right: 20px;
+    }
+
+    .lightbox-info {
+        padding: 15px 20px;
+        background-color: var(--surface-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .lightbox-actions {
+        display: flex;
+        gap: 15px;
+    }
+
+    .lightbox-actions a,
+    .lightbox-actions button {
+        color: var(--text-color);
+        text-decoration: none;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 1rem;
+    }
+
+    .lightbox-actions a:hover,
+    .lightbox-actions button:hover {
+        color: var(--primary-color);
+    }
+
+    @media (max-width: 768px) {
+        .page-layout {
+            flex-direction: column;
+        }
+
+        .sidebar {
+            width: 100%;
+        }
+
+        .album-list {
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+
+        .album-item {
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .gallery {
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 2px;
+        }
+
+        .gallery-header {
+            flex-direction: column;
+            gap: 15px;
+            align-items: flex-start;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-layout">
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <div class="sidebar-title">My Albums</div>
+            <div class="album-list">
+                <div class="album-item active" onclick="showAllMedia()">
+                    <span class="album-icon">📷</span>
+                    <div class="album-meta">
+                        <div class="album-name">All Photos</div>
+                        <div class="album-count" id="total-count">-</div>
+                    </div>
+                </div>
+                <div id="my-albums-list"></div>
+                <button class="album-item create-album-btn" onclick="openAlbumModal()">
+                    <span class="album-icon">+</span>
+                    <div class="album-meta">
+                        <div class="album-name">Create Album</div>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-title">Shared With Me</div>
+            <div class="album-list" id="shared-albums-list"></div>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-title">Public Albums</div>
+            <div class="album-list" id="public-albums-list"></div>
+        </div>
+    </aside>
+
+    <div class="main-content">
+        <div class="gallery-header">
+            <h1>My Photos</h1>
+            <div class="filter-bar">
+                <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">All</button>
+                <button class="filter-btn" data-filter="image" onclick="setFilter('image')">Photos</button>
+                <button class="filter-btn" data-filter="video" onclick="setFilter('video')">Videos</button>
+            </div>
+        </div>
+
+        <div id="gallery"></div>
+        <div id="loading" class="loading"><p>Loading photos...</p></div>
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <h2>No photos yet</h2>
+            <p><a href="/upload">Upload your first photo</a></p>
+        </div>
+    </div>
+</div>
+
+<!-- Album Modal -->
+<div id="album-modal" class="modal-overlay" onclick="closeAlbumModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+        <h2 id="modal-title">Create Album</h2>
+        <form id="album-form">
+            <input type="hidden" id="album-id">
+            <div class="form-group">
+                <label for="album-title">Title</label>
+                <input type="text" id="album-title" required>
+            </div>
+            <div class="form-group">
+                <label for="album-description">Description</label>
+                <textarea id="album-description"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="album-visibility">Visibility</label>
+                <select id="album-visibility">
+                    <option value="personal">Personale (solo tuo)</option>
+                    <option value="shared">Condiviso (utenti specifici)</option>
+                    <option value="public">Pubblico (tutti, anche non loggati)</option>
+                </select>
+            </div>
+            <div class="form-group" id="share-with-group" style="display: none;">
+                <label>Share with users</label>
+                <div class="user-list" id="user-list"></div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeAlbumModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox" class="lightbox">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <button class="lightbox-nav lightbox-prev" onclick="navigateMedia(-1)">&#10094;</button>
+    <button class="lightbox-nav lightbox-next" onclick="navigateMedia(1)">&#10095;</button>
+    <div class="lightbox-content">
+        <img id="lightbox-img" style="display: none;">
+        <video id="lightbox-video" style="display: none;" controls></video>
+    </div>
+    <div class="lightbox-info">
+        <div style="flex: 1;">
+            <div id="lightbox-filename" style="font-weight: 500;"></div>
+            <div id="lightbox-date" style="color: var(--text-secondary); font-size: 0.9rem;"></div>
+            <div style="margin-top: 8px; display: flex; align-items: center; gap: 10px;">
+                <label style="font-size: 0.9rem;">Album:</label>
+                <select id="lightbox-album-select" onchange="moveToAlbum()" style="padding: 6px 10px; border-radius: 4px; background: var(--bg-color); color: var(--text-color); border: 1px solid var(--text-secondary);">
+                    <option value="0">No album</option>
+                </select>
+            </div>
+        </div>
+        <div class="lightbox-actions">
+            <a id="lightbox-download" href="#" download>⬇ Download</a>
+            <button onclick="deleteCurrentMedia()">🗑 Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- Selection Toolbar -->
+<div class="selection-toolbar" id="selection-toolbar">
+    <span id="selection-count" style="color: var(--text-color); font-weight: bold;">0 selezionati</span>
+    <button onclick="downloadSelected()" title="Download">⬇</button>
+    <button onclick="moveSelectedToAlbum()" title="Sposta">📁</button>
+    <button onclick="deleteSelected()" title="Elimina">🗑</button>
+    <button onclick="clearSelection()" title="Annulla">✕</button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let allMediaItems = {};
+    let flatMediaList = [];
+    let currentIndex = 0;
+    let currentFilter = 'all';
+    let currentAlbumId = null;
+    let allUsers = [];
+
+    async function loadAlbums() {
+        const [albumsRes, usersRes] = await Promise.all([
+            fetch('/api/albums'),
+            fetch('/api/users')
+        ]);
+        const albums = await albumsRes.json();
+        allUsers = await usersRes.json();
+        window.myAlbumsData = albums.my_albums || [];
+        window.sharedAlbumsData = albums.shared_with_me || [];
+
+        document.getElementById('my-albums-list').innerHTML = (albums.my_albums || []).map(a => `
+            <div class="album-item" onclick="showAlbum(${a.id})" data-album-id="${a.id}">
+                <span class="album-icon">📁</span>
+                <div class="album-meta">
+                    <div class="album-name">${a.title}</div>
+                    <div class="album-count">${a.media_count} photos</div>
+                </div>
+                <button class="album-edit-btn" onclick="event.stopPropagation(); openAlbumModal(${a.id})" title="Edit album">✎</button>
+            </div>
+        `).join('');
+
+        document.getElementById('shared-albums-list').innerHTML = (albums.shared_with_me || []).map(a => `
+            <a href="/shared/${a.share_token}" class="album-item">
+                <span class="album-icon">👥</span>
+                <div class="album-meta">
+                    <div class="album-name">${a.title}</div>
+                    <div class="album-count">${a.media_count}</div>
+                </div>
+            </a>
+        `).join('') || '<p style="color: var(--text-secondary); padding: 10px;">No albums shared with you</p>';
+
+        document.getElementById('public-albums-list').innerHTML = (albums.public_albums || []).map(a => `
+            <a href="/shared/${a.share_token}" class="album-item">
+                <span class="album-icon">🌍</span>
+                <div class="album-meta">
+                    <div class="album-name">${a.title}</div>
+                    <div class="album-count">${a.media_count}</div>
+                </div>
+            </a>
+        `).join('') || '<p style="color: var(--text-secondary); padding: 10px;">No public albums</p>';
+    }
+
+    function renderUserList(selectedUsers = []) {
+        const userList = document.getElementById('user-list');
+        if (!userList) return;
+        userList.innerHTML = allUsers.users.map(u => `
+            <label style="display: flex; align-items: center; gap: 8px; padding: 4px 0;">
+                <input type="checkbox" value="${u.id}" ${selectedUsers.includes(u.id) ? 'checked' : ''}>
+                <span>${u.username}</span>
+            </label>
+        `).join('') || '<p style="color: var(--text-secondary);">No other users</p>';
+    }
+
+    async function loadMedia(albumId = null) {
+        document.getElementById('loading').style.display = 'block';
+        currentAlbumId = albumId;
+
+        let url = '/api/media';
+        if (albumId) url += `?album_id=${albumId}`;
+        if (currentFilter !== 'all') url += (url.includes('?') ? '&' : '?') + `type=${currentFilter}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        allMediaItems = data;
+        flatMediaList = [];
+
+        Object.keys(data).forEach(key => {
+            data[key].sections.forEach(section => {
+                section.items.forEach(media => {
+                    flatMediaList.push(media);
+                });
+            });
+        });
+
+        document.getElementById('total-count').textContent = `${flatMediaList.length} photos`;
+        renderGallery();
+        document.getElementById('loading').style.display = 'none';
+
+        document.getElementById('my-albums-list').querySelectorAll('.album-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.albumId == albumId);
+        });
+    }
+
+    function renderGallery() {
+        const gallery = document.getElementById('gallery');
+        const emptyState = document.getElementById('empty-state');
+
+        if (Object.keys(allMediaItems).length === 0) {
+            gallery.innerHTML = '';
+            emptyState.style.display = 'block';
+            return;
+        }
+
+        emptyState.style.display = 'none';
+
+        let html = '';
+        Object.keys(allMediaItems).forEach(key => {
+            const group = allMediaItems[key];
+            if (group.sections.length === 0) return;
+
+            html += `<div class="gallery-section">`;
+            html += `<div class="section-header"><span class="section-title">${group.title}</span></div>`;
+
+            group.sections.forEach(section => {
+                html += `<h3 class="section-date">${section.label}</h3>`;
+                html += `<div class="gallery">`;
+
+                section.items.forEach((media, idx) => {
+                    const globalIdx = flatMediaList.findIndex(m => m.id === media.id);
+                    html += `<div class="gallery-item" data-index="${globalIdx}" data-id="${media.id}" oncontextmenu="handleLongPress(event, ${media.id})">`;
+                    html += `<img src="${media.thumbnail_url || `/media/${media.id}/file`}" alt="${media.filename}" loading="lazy">`;
+                    if (media.media_type === 'video') {
+                        html += `<span class="video-indicator">▶</span>`;
+                    }
+                    html += `<div class="select-indicator" id="select-${media.id}">✓</div>`;
+                    html += `</div>`;
+                });
+
+                html += `</div>`;
+            });
+
+            html += `</div>`;
+        });
+
+        gallery.innerHTML = html;
+
+        document.querySelectorAll('.gallery-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                if (selectedMedia.size > 0) {
+                    toggleSelection(parseInt(item.dataset.id), item);
+                } else {
+                    openLightbox(parseInt(item.dataset.index));
+                }
+            });
+        });
+    }
+
+    let selectedMedia = new Set();
+    let selectionTimer = null;
+    let lastTap = 0;
+
+    function handleLongPress(e, mediaId) {
+        e.preventDefault();
+        const item = document.querySelector(`.gallery-item[data-id="${mediaId}"]`);
+        toggleSelection(mediaId, item);
+    }
+
+    function toggleSelection(mediaId, item) {
+        if (selectedMedia.has(mediaId)) {
+            selectedMedia.delete(mediaId);
+            item.classList.remove('selected');
+        } else {
+            selectedMedia.add(mediaId);
+            item.classList.add('selected');
+        }
+        updateSelectionToolbar();
+    }
+
+    function updateSelectionToolbar() {
+        const toolbar = document.getElementById('selection-toolbar');
+        const count = document.getElementById('selection-count');
+        
+        if (selectedMedia.size > 0) {
+            toolbar.classList.add('active');
+            count.textContent = `${selectedMedia.size} selezionati`;
+        } else {
+            toolbar.classList.remove('active');
+        }
+    }
+
+    function clearSelection() {
+        selectedMedia.clear();
+        document.querySelectorAll('.gallery-item.selected').forEach(item => {
+            item.classList.remove('selected');
+        });
+        updateSelectionToolbar();
+    }
+
+    async function downloadSelected() {
+        for (const id of selectedMedia) {
+            const media = flatMediaList.find(m => m.id === id);
+            if (media) {
+                const link = document.createElement('a');
+                link.href = `/media/${media.id}/file`;
+                link.download = media.filename;
+                link.click();
+                await new Promise(r => setTimeout(r, 300));
+            }
+        }
+        clearSelection();
+    }
+
+    async function moveSelectedToAlbum() {
+        const albumId = prompt('ID album (0 = rimuovi da album):');
+        if (albumId === null) return;
+        
+        for (const id of selectedMedia) {
+            await fetch(`/api/media/${id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({album_id: albumId === '0' ? null : parseInt(albumId)})
+            });
+        }
+        clearSelection();
+        loadMedia(currentAlbumId);
+    }
+
+    async function deleteSelected() {
+        if (!confirm(`Eliminare ${selectedMedia.size} foto?`)) return;
+        
+        for (const id of selectedMedia) {
+            await fetch(`/api/media/${id}`, {method: 'DELETE'});
+        }
+        clearSelection();
+        loadMedia(currentAlbumId);
+    }
+
+    function showAllMedia() {
+        currentAlbumId = null;
+        document.getElementById('my-albums-list').querySelectorAll('.album-item').forEach(el => el.classList.remove('active'));
+        document.querySelector('.album-item.active')?.classList.add('active');
+        loadMedia();
+    }
+
+    function showAlbum(id) {
+        currentAlbumId = id;
+        loadMedia(id);
+    }
+
+    function setFilter(filter) {
+        currentFilter = filter;
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector(`.filter-btn[data-filter="${filter}"]`).classList.add('active');
+        loadMedia(currentAlbumId);
+    }
+
+    function openAlbumModal(albumId = null) {
+        document.getElementById('album-modal').classList.add('active');
+        document.getElementById('share-with-group').style.display = 'none';
+
+        if (albumId) {
+            document.getElementById('modal-title').textContent = 'Edit Album';
+            const album = window.myAlbumsData.find(a => a.id === albumId) || window.sharedAlbumsData.find(a => a.id === albumId);
+            if (album) {
+                document.getElementById('album-id').value = album.id;
+                document.getElementById('album-title').value = album.title || '';
+                document.getElementById('album-description').value = album.description || '';
+                document.getElementById('album-visibility').value = album.visibility || 'personal';
+                document.getElementById('share-with-group').style.display = album.visibility === 'shared' ? 'block' : 'none';
+                renderUserList(album.shared_with || []);
+            }
+        } else {
+            document.getElementById('modal-title').textContent = 'Create Album';
+            document.getElementById('album-form').reset();
+            document.getElementById('album-id').value = '';
+            document.getElementById('album-visibility').value = 'personal';
+            renderUserList([]);
+        }
+    }
+
+    function closeAlbumModal(event) {
+        if (event && event.target !== event.currentTarget && !event.target.classList.contains('modal-overlay')) return;
+        document.getElementById('album-modal').classList.remove('active');
+    }
+
+    document.getElementById('album-visibility').addEventListener('change', function() {
+        document.getElementById('share-with-group').style.display = this.value === 'shared' ? 'block' : 'none';
+    });
+
+    document.getElementById('album-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const albumId = document.getElementById('album-id').value;
+        const title = document.getElementById('album-title').value;
+        const description = document.getElementById('album-description').value;
+        const visibility = document.getElementById('album-visibility').value;
+
+        const sharedWith = [];
+        document.querySelectorAll('#user-list input:checked').forEach(cb => {
+            sharedWith.push(parseInt(cb.value));
+        });
+
+        const method = albumId ? 'PUT' : 'POST';
+        const url = albumId ? `/api/albums/${albumId}` : '/api/albums';
+
+        const res = await fetch(url, {
+            method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({title, description, visibility, shared_with: sharedWith})
+        });
+
+        if (res.ok) {
+            closeAlbumModal();
+            loadAlbums();
+        }
+    });
+
+    function openLightbox(index) {
+        currentIndex = index;
+        const media = flatMediaList[index];
+        document.getElementById('lightbox').classList.add('active');
+        document.body.style.overflow = 'hidden';
+
+        const img = document.getElementById('lightbox-img');
+        const video = document.getElementById('lightbox-video');
+
+        if (media.media_type === 'image') {
+            img.src = `/media/${media.id}/file`;
+            img.style.display = 'block';
+            video.style.display = 'none';
+        } else {
+            video.src = `/media/${media.id}/file`;
+            video.style.display = 'block';
+            img.style.display = 'none';
+        }
+
+        document.getElementById('lightbox-filename').textContent = media.filename;
+        document.getElementById('lightbox-date').textContent = media.taken_at ? new Date(media.taken_at).toLocaleString() : '';
+        document.getElementById('lightbox-download').href = `/media/${media.id}/download`;
+        document.getElementById('lightbox-download').download = media.filename;
+
+        const albumSelect = document.getElementById('lightbox-album-select');
+        albumSelect.innerHTML = '<option value="0">No album</option>';
+        if (window.myAlbumsData) {
+            window.myAlbumsData.forEach(a => {
+                const selected = a.id === currentAlbumId ? 'selected' : '';
+                albumSelect.innerHTML += `<option value="${a.id}" ${selected}>${a.title}</option>`;
+            });
+        }
+    }
+
+    function closeLightbox() {
+        document.getElementById('lightbox').classList.remove('active');
+        document.getElementById('lightbox-video').pause();
+        document.body.style.overflow = '';
+    }
+
+    function navigateMedia(direction) {
+        currentIndex = (currentIndex + direction + flatMediaList.length) % flatMediaList.length;
+        openLightbox(currentIndex);
+    }
+
+    async function moveToAlbum() {
+        const media = flatMediaList[currentIndex];
+        const albumId = parseInt(document.getElementById('lightbox-album-select').value);
+
+        const res = await fetch(`/media/${media.id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({album_id: albumId})
+        });
+
+        if (res.ok) {
+            loadMedia(currentAlbumId);
+        } else {
+            alert('Failed to move to album');
+        }
+    }
+
+    async function deleteCurrentMedia() {
+        if (!confirm('Delete this file?')) return;
+        const media = flatMediaList[currentIndex];
+        await fetch(`/media/${media.id}`, {method: 'DELETE'});
+        loadMedia(currentAlbumId);
+        if (flatMediaList.length === 0) closeLightbox();
+    }
+
+    document.addEventListener('keydown', e => {
+        if (!document.getElementById('lightbox').classList.contains('active')) return;
+        if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'ArrowLeft') navigateMedia(-1);
+        if (e.key === 'ArrowRight') navigateMedia(1);
+    });
+
+    loadAlbums();
+    loadMedia();
+</script>
+{% endblock %}
